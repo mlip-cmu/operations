@@ -1,0 +1,33 @@
+[project]
+name = "ops01-spamfilter"
+version = "1.0.0"
+description = "Spam filter service of the blogging platform"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.142",
+    "uvicorn>=0.54",
+    "onnxruntime>=1.30",
+    "tokenizers>=0.23",
+    "numpy>=2.5",
+    "prometheus-client>=0.26",
+]
+
+[dependency-groups]
+# only needed to convert the pretrained model to ONNX (first build stage)
+export = [
+    "torch>=2.14",
+    "transformers>=5.18",
+    "onnx>=1.23",
+    "onnxscript>=0.7",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

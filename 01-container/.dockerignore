@@ -1,0 +1,7 @@
+.venv/
+model/
+out/
+__pycache__/
+*.md
+*.sh
+transcript.txt
