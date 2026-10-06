@@ -1,0 +1,46 @@
+
+== 1. Start the whole system with one command
+$ docker compose up -d --build --wait --quiet-pull
+$ docker compose ps --format 'table {{.Service}}\t{{.Status}}'
+SERVICE      STATUS
+blog         Up 6 seconds (healthy)
+redis        Up 11 seconds (healthy)
+spamfilter   Up 11 seconds (healthy)
+worker       Up 5 seconds
+
+== 2. Readers post comments; the worker sends each one to the spam filter
+$ uv run --quiet ../traffic/send_traffic.py --target blog --url http://localhost:8080 -n 30
+sent 30 comments in 0.2 s: 30 ok, 0 failed
+latency: median 16 ms, p95 39 ms
+# all comments checked after 1 s
+$ curl -s localhost:8080/stats
+{"waiting":0,"published":20,"spam":10}
+{"event": "filtered", "comment": "28", "status": "published"}
+{"event": "filtered", "comment": "29", "status": "published"}
+
+== 3. The spam filter stops; the blog still accepts comments
+$ docker compose stop spamfilter
+ Container blog-spamfilter-1 Stopping 
+ Container blog-spamfilter-1 Stopped 
+$ uv run --quiet ../traffic/send_traffic.py --target blog --url http://localhost:8080 -n 30
+sent 30 comments in 0.1 s: 30 ok, 0 failed
+latency: median 12 ms, p95 19 ms
+$ curl -s localhost:8080/stats
+{"waiting":30,"published":20,"spam":10}
+{"event": "filter_unavailable", "comment": "32", "error": "ConnectError"}
+{"event": "filter_unavailable", "comment": "32", "error": "ConnectError"}
+# a blog that called the spam filter directly would fail now:
+$ docker compose exec worker python -c 'import httpx; httpx.post("http://spamfilter:8000/check")'
+httpx.ConnectError: [Errno -2] Name or service not known
+
+== 4. The spam filter is back; the worker checks the waiting comments
+$ docker compose start spamfilter
+ Container blog-spamfilter-1 Starting 
+ Container blog-spamfilter-1 Started 
+# all comments checked after 3 s
+$ curl -s localhost:8080/stats
+{"waiting":0,"published":40,"spam":20}
+
+== 5. Stop and remove everything
+$ docker compose down -v
+ Network blog_default Removed 

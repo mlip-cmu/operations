@@ -1,0 +1,15 @@
+[project]
+name = "ops02-blog"
+version = "1.0.0"
+description = "Blog web app and spam-check worker"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.142",
+    "uvicorn>=0.54",
+    "redis>=8.1",
+    "httpx>=0.28",
+    "prometheus-client>=0.26",
+]
+
+[tool.uv]
+package = false
