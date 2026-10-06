@@ -1,0 +1,46 @@
+# The spam filter: three copies (pods) of the container from 01
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spamfilter
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: spamfilter
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0  # replace pods one at a time; keep all old pods until a new one is ready
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: spamfilter
+    spec:
+      containers:
+        - name: spamfilter
+          image: spamfilter:1.0
+          imagePullPolicy: Never  # the image is loaded into minikube, not pulled from a registry
+          ports:
+            - containerPort: 8000
+          env:
+            - name: SPAM_THRESHOLD
+              value: "0.5"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:  # send traffic to the pod only when it answers
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 2
+          livenessProbe:  # restart the container when it stops answering
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+            failureThreshold: 3

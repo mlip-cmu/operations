@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import socket
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -69,7 +70,12 @@ class Comment(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": APP_VERSION, "model": app.state.model.version}
+    return {
+        "status": "ok",
+        "version": APP_VERSION,
+        "model": app.state.model.version,
+        "host": socket.gethostname(),
+    }
 
 
 @app.post("/check")

@@ -1,0 +1,12 @@
+# One stable address for all spam filter pods; Kubernetes balances the requests
+apiVersion: v1
+kind: Service
+metadata:
+  name: spamfilter
+spec:
+  type: NodePort
+  selector:
+    app: spamfilter
+  ports:
+    - port: 80
+      targetPort: 8000

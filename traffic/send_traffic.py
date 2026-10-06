@@ -6,6 +6,7 @@
 
 import argparse
 import asyncio
+import itertools
 import random
 import statistics
 import time
@@ -74,36 +75,38 @@ async def send(client, args, text, results):
 
 async def main(args):
     batch = comments(args.n, args.spam_share, args.seed)
+    todo = itertools.cycle(batch) if args.duration else iter(batch)
+    deadline = time.perf_counter() + args.duration
     results: list = []
     headers = {"X-API-Key": args.api_key} if args.api_key else {}
-    limit = asyncio.Semaphore(args.concurrency)
     async with httpx.AsyncClient(timeout=5, headers=headers) as client:
 
-        async def one(text):
-            async with limit:
+        async def worker():
+            for text, _ in todo:
+                if args.duration and time.perf_counter() > deadline:
+                    break
                 await send(client, args, text, results)
                 if args.rate:
                     await asyncio.sleep(args.concurrency / args.rate)
 
         start = time.perf_counter()
-        await asyncio.gather(*(one(text) for text, _ in batch))
+        await asyncio.gather(*(worker() for _ in range(args.concurrency)))
         duration = time.perf_counter() - start
 
     ok = [r for r in results if r[1]]
     lat = sorted(r[3] * 1000 for r in ok)
     print(
-        f"sent {len(batch)} comments in {duration:.1f} s: {len(ok)} ok, {len(batch) - len(ok)} failed"
+        f"sent {len(results)} comments in {duration:.1f} s: {len(ok)} ok, {len(results) - len(ok)} failed"
     )
     if lat:
         p95 = lat[int(0.95 * (len(lat) - 1))]
         print(f"latency: median {statistics.median(lat):.0f} ms, p95 {p95:.0f} ms")
     if args.target == "filter" and ok:
         truth = dict(batch)
+        spam = sum(truth[text] for text, *_ in results)
         flagged = sum(1 for _, _, body, _ in ok if body["spam"])
         correct = sum(1 for text, _, body, _ in ok if body["spam"] == truth[text])
-        print(
-            f"flagged as spam: {flagged} (true spam: {sum(s for _, s in batch)}), correct: {correct} of {len(ok)}"
-        )
+        print(f"flagged as spam: {flagged} (true spam: {spam}), correct: {correct} of {len(ok)}")
 
 
 if __name__ == "__main__":
@@ -116,6 +119,7 @@ if __name__ == "__main__":
     p.add_argument(
         "--rate", type=float, default=0, help="comments per second (0 = as fast as possible)"
     )
+    p.add_argument("--duration", type=float, default=0, help="seconds; repeat the comments")
     p.add_argument("--api-key")
     p.add_argument("--seed", type=int, default=1)
     asyncio.run(main(p.parse_args()))
