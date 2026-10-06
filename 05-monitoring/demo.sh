@@ -55,8 +55,11 @@ promql 'histogram_quantile(0.95, sum by (le) (rate(spamfilter_inference_seconds_
 alerts
 
 step "3. The spam filter stops"
+stopped=$SECONDS
 run docker compose stop spamfilter
-wait_for 120 firing SpamFilterDown && wait_for 60 firing CommentsWaiting || true
+for alert in SpamFilterDown CommentsWaiting; do
+  wait_for 120 firing $alert && echo "# $alert fires $((SECONDS - stopped)) s after the stop"
+done
 promql 'up{job="spamfilter"}'
 promql 'blog_comments_waiting'
 alerts
@@ -64,8 +67,9 @@ echo "# logs (Loki): what does the worker report?"
 logql '{service="worker"} |= "filter_unavailable"' 2
 
 step "4. The spam filter is back"
+started=$SECONDS
 run docker compose start spamfilter
-wait_for 120 no_alerts || true
+wait_for 120 no_alerts && echo "# all alerts resolved $((SECONDS - started)) s after the start"
 promql 'blog_comments_waiting'
 alerts
 logql '{service="spamfilter"} |= "started"' 1

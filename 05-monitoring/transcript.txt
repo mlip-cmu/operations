@@ -1,0 +1,64 @@
+
+== 1. Start the blog system with Prometheus, Loki, Alloy, and Grafana
+$ docker compose up -d --build --wait
+$ docker compose ps --format 'table {{.Service}}\t{{.Status}}'
+SERVICE      STATUS
+alloy        Up 11 seconds
+blog         Up 6 seconds (healthy)
+grafana      Up 12 seconds
+loki         Up 12 seconds
+prometheus   Up 12 seconds
+redis        Up 11 seconds (healthy)
+spamfilter   Up 12 seconds (healthy)
+worker       Up 5 seconds
+# Grafana: http://localhost:3000  Prometheus: http://localhost:9090
+
+== 2. Normal operation: readers post 8 comments per second (for 4 minutes)
+PromQL> up
+  job=spamfilter 1
+  job=blog 1
+PromQL> sum(rate(blog_comments_posted_total[1m]))
+   7.798
+PromQL> sum by (result) (rate(spamfilter_comments_total[1m]))
+  result=ham 5.493
+  result=spam 2.309
+PromQL> histogram_quantile(0.95, sum by (le) (rate(spamfilter_inference_seconds_bucket[1m])))
+   0.005
+# alerts (Prometheus):
+  none
+
+== 3. The spam filter stops
+$ docker compose stop spamfilter
+ Container blog-monitoring-spamfilter-1 Stopping 
+ Container blog-monitoring-spamfilter-1 Stopped 
+# SpamFilterDown fires 35 s after the stop
+# CommentsWaiting fires 39 s after the stop
+PromQL> up{job="spamfilter"}
+  job=spamfilter 0
+PromQL> blog_comments_waiting
+  job=blog 292
+# alerts (Prometheus):
+  FIRING SpamFilterDown: The spam filter does not answer; new comments are not published.
+  FIRING CommentsWaiting: 292 comments wait for the spam check.
+# logs (Loki): what does the worker report?
+LogQL> {service="worker"} |= "filter_unavailable"
+  {"event": "filter_unavailable", "comment": "474", "error": "ConnectError"}
+  {"event": "filter_unavailable", "comment": "474", "error": "ConnectError"}
+
+== 4. The spam filter is back
+$ docker compose start spamfilter
+ Container blog-monitoring-spamfilter-1 Starting 
+ Container blog-monitoring-spamfilter-1 Started 
+# all alerts resolved 20 s after the start
+PromQL> blog_comments_waiting
+  job=blog 0
+# alerts (Prometheus):
+  none
+LogQL> {service="spamfilter"} |= "started"
+  {"event": "started", "version": "1.0", "model": "Titeiiko/OTIS-Official-Spam-Model@2586e3d"}
+
+== 5. The dashboard (screenshot in dashboard.png)
+sent 1881 comments in 240.4 s: 1881 ok, 0 failed
+latency: median 7 ms, p95 21 ms
+$ uv run python screenshot.py dashboard.png
+saved dashboard.png

@@ -2,9 +2,10 @@
 == 0. Start four fresh servers (containers): web1, web2, spam1, spam2
 $ docker ps --filter name=web --filter name=spam --format '{{.Names}}\t{{.Image}}'
 spam2	fleet-spam
-web2	fleet-web
 spam1	fleet-spam
+web2	fleet-web
 web1	fleet-web
+blog-monitoring-spamfilter-1	beb0b266aa9f
 
 == 1. Inventory: which servers exist and which role each has
 $ uv run ansible-inventory --graph
@@ -17,10 +18,10 @@ $ uv run ansible-inventory --graph
   |  |--spam1
   |  |--spam2
 $ uv run ansible all -m ping
-web1 | SUCCESS => {
 web2 | SUCCESS => {
-spam2 | SUCCESS => {
+web1 | SUCCESS => {
 spam1 | SUCCESS => {
+spam2 | SUCCESS => {
 
 == 2. The API key is in the repository, but encrypted (Ansible Vault)
 $ head -3 group_vars/all/vault.yml
@@ -35,35 +36,35 @@ PLAY [Set up all servers] ******************************************************
 
 TASK [Gathering Facts] *********************************************************
 ok: [web1]
-ok: [web2]
-ok: [spam2]
 ok: [spam1]
+ok: [spam2]
+ok: [web2]
 
 TASK [Install curl on every server] ********************************************
-ok: [web2]
 ok: [web1]
-changed: [spam1]
+ok: [web2]
 changed: [spam2]
+changed: [spam1]
 
 TASK [Write the message of the day] ********************************************
-changed: [spam1]
-changed: [web2]
 changed: [web1]
+changed: [spam1]
 changed: [spam2]
+changed: [web2]
 
 PLAY [Configure the spam filter servers] ***************************************
 
 TASK [Create the configuration directory] **************************************
-changed: [spam1]
 changed: [spam2]
+changed: [spam1]
 
 TASK [Write the spam filter configuration] *************************************
-changed: [spam1]
 changed: [spam2]
+changed: [spam1]
 
 TASK [Write the API key] *******************************************************
-changed: [spam1]
 changed: [spam2]
+changed: [spam1]
 
 RUNNING HANDLER [Restart the spam filter] **************************************
 changed: [spam2]
@@ -72,12 +73,12 @@ changed: [spam1]
 PLAY [Configure the web servers] ***********************************************
 
 TASK [Write the nginx configuration (forward /check to all spam filter servers)] ***
-changed: [web2]
 changed: [web1]
+changed: [web2]
 
 RUNNING HANDLER [Reload nginx] *************************************************
-changed: [web1]
 changed: [web2]
+changed: [web1]
 
 PLAY RECAP *********************************************************************
 spam1                      : ok=7    changed=6    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
@@ -115,7 +116,7 @@ ok: [spam2]
 
 TASK [Write the spam filter configuration] *************************************
 --- before: /etc/spamfilter/spamfilter.env
-+++ after: /root/.ansible/tmp/ansible-local-37752oiibcwf/tmp2w2nj6qn/spamfilter.env.j2
++++ after: /root/.ansible/tmp/ansible-local-28061pjv7u8xn/tmp1omed0tl/spamfilter.env.j2
 @@ -1,3 +1,3 @@
  # Managed by Ansible. Changes made by hand will be overwritten.
 -SPAM_THRESHOLD=0.99

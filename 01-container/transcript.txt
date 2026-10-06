@@ -1,9 +1,9 @@
 
 == 1. Build: stage 1 converts the model (needs PyTorch), stage 2 is the service
 $ docker build -q --target model -t spamfilter:build-stage .
-sha256:6cdf60ddcaa5e512994c14969bd55023b8ec682d772d516b87dd14d8245aa4cf
+sha256:b97fa110f222715603cceca10143305836b02d97297b2bd6fa9ad7922e32444f
 $ docker build -q --build-arg APP_VERSION=1.0 -t spamfilter:1.0 .
-sha256:48f6bc632193b1b3a99126885a43e21199dcf3fae09bf67de7f0b9b0e7f12a08
+sha256:6509a91066ab478d4e4e728f7543da194ca617126a745ed4daa168829b561d73
 spamfilter:build-stage   3136 MB
 spamfilter:1.0            785 MB
 $ docker run --rm spamfilter:build-stage uv run --no-sync python -c 'import torch; print(torch.__version__)'
@@ -13,12 +13,12 @@ ModuleNotFoundError: No module named 'torch'
 
 == 2. Run the container; Docker checks its health
 $ docker run -d --name spamfilter -p 8000:8000 spamfilter:1.0
-e93af5ef2458c5e4cbbe107ba61339c0bb766328f6db7d6b4aed7799f695ad1f
+35e6c33ca83205423d06b8c0725e3d342ce15b42b01ab87a3b0673996d96b2f4
 spamfilter: healthy
 $ docker exec spamfilter whoami
 app
 $ curl -s localhost:8000/health
-{"status":"ok","version":"1.0","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d"}
+{"status":"ok","version":"1.0","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d","host":"35e6c33ca832"}
 
 == 3. Check comments
 $ curl -X POST localhost:8000/check -d '{"text": "Great post about the playoffs, I had the same experience last year."}'
@@ -26,15 +26,15 @@ $ curl -X POST localhost:8000/check -d '{"text": "Great post about the playoffs,
 $ curl -X POST localhost:8000/check -d '{"text": "Free crypto signals, 1000% profit guaranteed, join t.me/moonpump now"}'
 {"spam":true,"score":1.0,"version":"1.0"}
 $ uv run --quiet ../traffic/send_traffic.py --url http://localhost:8000 -n 200
-sent 200 comments in 0.9 s: 200 ok, 0 failed
-latency: median 17 ms, p95 27 ms
+sent 200 comments in 0.8 s: 200 ok, 0 failed
+latency: median 15 ms, p95 29 ms
 flagged as spam: 73 (true spam: 63), correct: 190 of 200
-{"event": "checked", "spam": true, "score": 1.0, "ms": 0.8, "chars": 68}
-{"event": "checked", "spam": true, "score": 1.0, "ms": 4.1, "chars": 58}
+{"event": "checked", "spam": true, "score": 1.0, "ms": 1.0, "chars": 58}
+{"event": "checked", "spam": true, "score": 1.0, "ms": 2.3, "chars": 68}
 
 == 4. Same image, different configuration (environment variable)
 $ docker run -d --name spamfilter-strict -p 8001:8000 -e SPAM_THRESHOLD=0.99 spamfilter:1.0
-abc5dec937a0aaaf69f3c6eb9920d7b2786722c0e3d49496f5f6c561b1478156
+e4a187c7f6547b6b433536040b8adb4810042432e1f8c6254b049efc19e3ffe4
 spamfilter-strict: healthy
 $ curl -X POST localhost:8000/check -d '{"text": "Thanks for writing about your sourdough recipe. Could you share more details?"}'
 {"spam":true,"score":0.981,"version":"1.0"}
@@ -43,28 +43,28 @@ $ curl -X POST localhost:8001/check -d '{"text": "Thanks for writing about your 
 
 == 5. No network needed at start: the model is inside the image
 $ docker run -d --name spamfilter-offline --network none spamfilter:1.0
-3feb37595ae972a4df1b10ee2247b02b23e73da7f77350148bda2c87b1003848
+6678d235c498bc5c0359616f889d63c0088763925fec8c352120b6a4d46e2246
 spamfilter-offline: healthy
 
 == 6. Release 1.1, then roll back to 1.0: tags point to fixed images
 $ docker build -q --build-arg APP_VERSION=1.1 -t spamfilter:1.1 .
-sha256:5a312c57d6c24147d2e79304823f486edac64a9e78adcb4fd8a7d5f3ee492298
+sha256:1e2693a04010adf26e8ecf6c48cbce13437400a3f6051acad602e0e1552ce6cf
 $ docker rm -f spamfilter
 spamfilter
 $ docker run -d --name spamfilter -p 8000:8000 spamfilter:1.1
-98b5b1b6c181b878b4af12e8e773a883f108b8015f578ba65fd13a5b95e1dc09
+451670eb0b75695948abc789116cf33d0523aa7740d1a2a6131fc22e821f4b21
 spamfilter: healthy
 $ curl -s localhost:8000/health
-{"status":"ok","version":"1.1","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d"}
+{"status":"ok","version":"1.1","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d","host":"451670eb0b75"}
 # 1.1 has a problem: roll back
 $ docker rm -f spamfilter
 spamfilter
 $ docker run -d --name spamfilter -p 8000:8000 spamfilter:1.0
-3949d50808ce858ee2bc7fd30892314de10a757d3b263d90d3771b8aaff4bdeb
+57b3a8b08925426d30737433b8cefff2e556e06f2ff191c78f67e49148ace912
 spamfilter: healthy
 $ curl -s localhost:8000/health
-{"status":"ok","version":"1.0","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d"}
+{"status":"ok","version":"1.0","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d","host":"57b3a8b08925"}
 $ docker image ls spamfilter --format '{{.Tag}}\t{{.ID}}'
-1.1	5a312c57d6c2
-1.0	48f6bc632193
-build-stage	6cdf60ddcaa5
+1.1	1e2693a04010
+1.0	6509a91066ab
+build-stage	b97fa110f222

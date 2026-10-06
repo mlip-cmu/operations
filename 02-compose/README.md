@@ -59,7 +59,7 @@ except httpx.HTTPError as e:
 1. `docker compose up --wait` builds the images, starts four services in the correct order,
    and waits until they are healthy.
 2. 30 comments: the worker checks all of them within about 1 s (20 published, 10 spam).
-3. The spam filter is stopped. The blog still accepts all 30 new comments (median 12 ms); they
+3. The spam filter is stopped. The blog still accepts all 30 new comments (median about 10 ms); they
    wait in the queue (`"waiting": 30`), and the worker logs `filter_unavailable`. A direct
    call to the spam filter fails.
 4. The spam filter starts again; the worker checks the 30 waiting comments within about 3 s.

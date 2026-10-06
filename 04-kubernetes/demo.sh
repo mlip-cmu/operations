@@ -36,12 +36,11 @@ step "1. Deploy three pods behind one service"
 run kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml
 run kubectl rollout status deployment/spamfilter --timeout=180s
 run kubectl get pods
-# the service's port on the cluster node; with Docker Desktop (macOS, Windows), run
-# `minikube service spamfilter --url` in another terminal and set URL to its output
-URL=${URL:-http://$(minikube ip):$(kubectl get service spamfilter -o jsonpath='{.spec.ports[0].nodePort}')}
+# the service's port on the cluster node (reachable from the host on Linux)
+URL=http://$(minikube ip):$(kubectl get service spamfilter -o jsonpath='{.spec.ports[0].nodePort}')
 echo "# service URL: $URL"
 echo "# the service balances requests over the pods (see \"host\"):"
-health 4
+health 6
 
 step "2. Self-healing: a pod is deleted, Kubernetes starts a new one"
 victim=$(kubectl get pods -l app=spamfilter -o jsonpath='{.items[0].metadata.name}')
@@ -62,14 +61,18 @@ show kubectl rollout status deployment/spamfilter --timeout=45s
 kubectl rollout status deployment/spamfilter --timeout=45s || true
 run kubectl get pods
 newest=$(kubectl get pods -l app=spamfilter --sort-by=.metadata.creationTimestamp -o name | tail -1)
-show kubectl logs "$newest" --tail=1
-kubectl logs "$newest" --tail=1 || true
+show kubectl logs "$newest"
+kubectl logs "$newest" | grep -E 'Error|NoSuchFile' | tail -1 || true
 echo "# users do not notice; the service still answers with version 1.1:"
 health 2
 echo "# roll back to the previous version of the deployment:"
 run kubectl rollout undo deployment/spamfilter
 run kubectl rollout status deployment/spamfilter --timeout=180s
 run kubectl rollout history deployment/spamfilter
+for _ in $(seq 30); do  # wait until the failed pod is removed
+  kubectl get pods -l app=spamfilter --no-headers | grep -qv Running || break
+  sleep 2
+done
 run kubectl get pods
 
 step "5. Autoscaling: under load, Kubernetes adds pods"

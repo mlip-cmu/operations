@@ -14,7 +14,7 @@
   "panels": [
     {
       "id": 1,
-      "type": "stat",
+      "type": "state-timeline",
       "title": "Spam filter",
       "gridPos": {
         "x": 0,
@@ -33,7 +33,7 @@
             "uid": "prometheus"
           },
           "expr": "up{job=\"spamfilter\"}",
-          "legendFormat": "",
+          "legendFormat": "spam filter",
           "refId": "A"
         }
       ],
@@ -41,45 +41,50 @@
         "defaults": {
           "mappings": [
             {
-              "type": "value",
+              "type": "range",
               "options": {
-                "0": {
-                  "text": "DOWN",
-                  "color": "#d03b3b"
-                },
-                "1": {
+                "from": 0.5,
+                "to": 1.5,
+                "result": {
                   "text": "UP",
-                  "color": "#0ca30c"
+                  "color": "#0ca30c",
+                  "index": 0
+                }
+              }
+            },
+            {
+              "type": "range",
+              "options": {
+                "from": -0.5,
+                "to": 0.5,
+                "result": {
+                  "text": "DOWN",
+                  "color": "#d03b3b",
+                  "index": 1
                 }
               }
             }
           ],
           "color": {
-            "mode": "thresholds"
+            "mode": "fixed",
+            "fixedColor": "#0ca30c"
           },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "#d03b3b",
-                "value": null
-              },
-              {
-                "color": "#0ca30c",
-                "value": 1
-              }
-            ]
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
           }
         },
         "overrides": []
       },
       "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ]
+        "showValue": "auto",
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single"
         }
       }
     },
@@ -404,7 +409,7 @@
     {
       "id": 7,
       "type": "logs",
-      "title": "Log events of worker and spam filter (without routine events)",
+      "title": "Events from the logs of worker and spam filter (without routine events)",
       "gridPos": {
         "x": 0,
         "y": 12,
@@ -422,7 +427,7 @@
             "uid": "loki"
           },
           "refId": "A",
-          "expr": "{service=~\"worker|spamfilter\"} != `\"event\": \"checked\"` != `\"event\": \"filtered\"`"
+          "expr": "{service=~\"worker|spamfilter\"} |= `\"event\"` != `\"event\": \"checked\"` != `\"event\": \"filtered\"`"
         }
       ],
       "options": {
