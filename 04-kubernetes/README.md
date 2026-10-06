@@ -54,7 +54,21 @@ spec:
 
 `demo.sh` (output in [`transcript.txt`](transcript.txt), recorded in GitHub Actions):
 
-RESULTS
+1. minikube starts a cluster with one node. The three pods are ready within a few seconds,
+   behind one service with a fixed address.
+2. **Self-healing.** A pod is deleted; Kubernetes starts a new one at once, and it is ready
+   about 4 s later.
+3. **Rolling update** to version 1.1: Kubernetes replaces the pods one at a time. Then all
+   answers come from version 1.1, from different pods.
+4. **Bad update** (a wrong model path): the new pod crashes and restarts (3 restarts in 45 s)
+   and never becomes ready. Because of `maxUnavailable: 0`, the three old pods keep running:
+   the update stops, and users still get answers from version 1.1. The log of the new pod
+   shows the cause (`NO_SUCHFILE`). `kubectl rollout undo` goes back to version 1.1.
+5. **Autoscaling.** Under load from 32 parallel clients, the CPU use goes to about 120% of the
+   request. The autoscaler increases the number of pods from 3 to 6 and then to 8, but only 4
+   pods run: the other 4 stay `Pending`, because the single node has no free CPU for them.
+   More pods help only when the cluster has capacity; in a cloud, a cluster autoscaler adds
+   nodes. All 43,779 comments of the 3 minutes get an answer (median 108 ms).
 
 ## Tools
 

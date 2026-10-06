@@ -39,7 +39,7 @@ run kubectl get pods
 # the service's port on the cluster node (reachable from the host on Linux)
 URL=http://$(minikube ip):$(kubectl get service spamfilter -o jsonpath='{.spec.ports[0].nodePort}')
 echo "# service URL: $URL"
-echo "# the service balances requests over the pods (see \"host\"):"
+echo "# the service answers; \"host\" is the name of the pod that answered:"
 health 6
 
 step "2. Self-healing: a pod is deleted, Kubernetes starts a new one"

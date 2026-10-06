@@ -1,0 +1,138 @@
+
+== 0. Start a local cluster and load the images
+$ minikube start --driver=docker
+$ minikube addons enable metrics-server
+$ minikube image load spamfilter:1.0
+$ minikube image load spamfilter:1.1
+$ kubectl get nodes
+NAME       STATUS   ROLES           AGE     VERSION
+minikube   Ready    control-plane   2m36s   v1.37.0
+
+== 1. Deploy three pods behind one service
+$ kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml
+deployment.apps/spamfilter created
+service/spamfilter created
+$ kubectl rollout status deployment/spamfilter --timeout=180s
+Waiting for deployment "spamfilter" rollout to finish: 0 of 3 updated replicas are available...
+Waiting for deployment "spamfilter" rollout to finish: 1 of 3 updated replicas are available...
+Waiting for deployment "spamfilter" rollout to finish: 2 of 3 updated replicas are available...
+deployment "spamfilter" successfully rolled out
+$ kubectl get pods
+NAME                          READY   STATUS    RESTARTS   AGE
+spamfilter-6f4d5f549f-5dlkw   1/1     Running   0          6s
+spamfilter-6f4d5f549f-pqq4k   1/1     Running   0          6s
+spamfilter-6f4d5f549f-zl2x2   1/1     Running   0          6s
+# service URL: http://192.168.49.2:31996
+# the service answers; "host" is the name of the pod that answered:
+{"status":"ok","version":"1.0","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d","host":"spamfilter-6f4d5f549f-pqq4k"}
+{"status":"ok","version":"1.0","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d","host":"spamfilter-6f4d5f549f-pqq4k"}
+{"status":"ok","version":"1.0","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d","host":"spamfilter-6f4d5f549f-pqq4k"}
+{"status":"ok","version":"1.0","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d","host":"spamfilter-6f4d5f549f-pqq4k"}
+{"status":"ok","version":"1.0","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d","host":"spamfilter-6f4d5f549f-pqq4k"}
+{"status":"ok","version":"1.0","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d","host":"spamfilter-6f4d5f549f-pqq4k"}
+
+== 2. Self-healing: a pod is deleted, Kubernetes starts a new one
+$ kubectl delete pod spamfilter-6f4d5f549f-5dlkw --wait=false
+pod "spamfilter-6f4d5f549f-5dlkw" deleted from default namespace
+$ kubectl get pods
+NAME                          READY   STATUS    RESTARTS   AGE
+spamfilter-6f4d5f549f-4tdbz   0/1     Running   0          2s
+spamfilter-6f4d5f549f-pqq4k   1/1     Running   0          8s
+spamfilter-6f4d5f549f-zl2x2   1/1     Running   0          8s
+$ kubectl get pods
+NAME                          READY   STATUS    RESTARTS   AGE
+spamfilter-6f4d5f549f-4tdbz   1/1     Running   0          4s
+spamfilter-6f4d5f549f-pqq4k   1/1     Running   0          10s
+spamfilter-6f4d5f549f-zl2x2   1/1     Running   0          10s
+
+== 3. Rolling update to version 1.1: one pod at a time, no downtime
+$ kubectl set image deployment/spamfilter spamfilter=spamfilter:1.1
+deployment.apps/spamfilter image updated
+$ kubectl rollout status deployment/spamfilter --timeout=180s
+Waiting for deployment "spamfilter" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "spamfilter" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "spamfilter" rollout to finish: 1 out of 3 new replicas have been updated...
+Waiting for deployment "spamfilter" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "spamfilter" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "spamfilter" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "spamfilter" rollout to finish: 2 out of 3 new replicas have been updated...
+Waiting for deployment "spamfilter" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "spamfilter" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "spamfilter" rollout to finish: 1 old replicas are pending termination...
+deployment "spamfilter" successfully rolled out
+{"status":"ok","version":"1.1","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d","host":"spamfilter-7df775456-9864z"}
+{"status":"ok","version":"1.1","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d","host":"spamfilter-7df775456-rsbpg"}
+
+== 4. A bad update: the new pod cannot start; the old pods keep serving
+$ kubectl set env deployment/spamfilter MODEL_DIR=/models/missing
+deployment.apps/spamfilter env updated
+$ kubectl rollout status deployment/spamfilter --timeout=45s
+Waiting for deployment "spamfilter" rollout to finish: 1 out of 3 new replicas have been updated...
+error: timed out waiting for the condition
+$ kubectl get pods
+NAME                         READY   STATUS    RESTARTS      AGE
+spamfilter-695855796-9qdnh   0/1     Running   3 (26s ago)   45s
+spamfilter-7df775456-9864z   1/1     Running   0             50s
+spamfilter-7df775456-n5757   1/1     Running   0             60s
+spamfilter-7df775456-rsbpg   1/1     Running   0             55s
+$ kubectl logs pod/spamfilter-695855796-9qdnh
+onnxruntime.capi.onnxruntime_pybind11_state.NoSuchFile: [ONNXRuntimeError] : 3 : NO_SUCHFILE : Load model from /models/missing/model.onnx failed:Load model /models/missing/model.onnx failed. File doesn't exist
+# users do not notice; the service still answers with version 1.1:
+{"status":"ok","version":"1.1","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d","host":"spamfilter-7df775456-n5757"}
+{"status":"ok","version":"1.1","model":"Titeiiko/OTIS-Official-Spam-Model@2586e3d","host":"spamfilter-7df775456-n5757"}
+# roll back to the previous version of the deployment:
+$ kubectl rollout undo deployment/spamfilter
+Warning: resource deployments/spamfilter was previously managed with 'kubectl apply'. Rolling back will not update the kubectl.kubernetes.io/last-applied-configuration annotation, which may cause unexpected behavior on future 'kubectl apply' operations. Consider using 'kubectl apply' with your previous configuration file instead.
+deployment.apps/spamfilter rolled back
+$ kubectl rollout status deployment/spamfilter --timeout=180s
+deployment "spamfilter" successfully rolled out
+$ kubectl rollout history deployment/spamfilter
+deployment.apps/spamfilter 
+REVISION  CHANGE-CAUSE
+1         <none>
+3         <none>
+4         <none>
+
+$ kubectl get pods
+NAME                         READY   STATUS    RESTARTS   AGE
+spamfilter-7df775456-9864z   1/1     Running   0          53s
+spamfilter-7df775456-n5757   1/1     Running   0          63s
+spamfilter-7df775456-rsbpg   1/1     Running   0          58s
+
+== 5. Autoscaling: under load, Kubernetes adds pods
+$ kubectl apply -f k8s/autoscaler.yaml
+horizontalpodautoscaler.autoscaling/spamfilter created
+$ kubectl get hpa spamfilter
+NAME         REFERENCE               TARGETS       MINPODS   MAXPODS   REPLICAS   AGE
+spamfilter   Deployment/spamfilter   cpu: 1%/50%   3         8         3          46s
+# 3 minutes of load from 32 parallel clients:
+time   cpu/target   pods
+20s    1%/50%       3
+40s    1%/50%       3
+60s    123%/50%     3
+80s    123%/50%     6
+100s   123%/50%     8
+120s   125%/50%     8
+140s   125%/50%     8
+160s   125%/50%     8
+180s   115%/50%     8
+200s   115%/50%     8
+sent 43779 comments in 179.9 s: 43779 ok, 0 failed
+latency: median 108 ms, p95 304 ms
+flagged as spam: 13135 (true spam: 11384), correct: 42028 of 43779
+$ kubectl get pods
+NAME                         READY   STATUS    RESTARTS   AGE
+spamfilter-7df775456-5nph6   0/1     Pending   0          2m10s
+spamfilter-7df775456-9864z   1/1     Running   0          5m4s
+spamfilter-7df775456-dcvws   0/1     Pending   0          2m10s
+spamfilter-7df775456-g8rc9   0/1     Pending   0          2m25s
+spamfilter-7df775456-hsptt   1/1     Running   0          2m25s
+spamfilter-7df775456-k5752   0/1     Pending   0          2m25s
+spamfilter-7df775456-n5757   1/1     Running   0          5m14s
+spamfilter-7df775456-rsbpg   1/1     Running   0          5m9s
+
+== 6. Clean up (the cluster keeps running; stop it with: minikube stop)
+$ kubectl delete -f k8s
+horizontalpodautoscaler.autoscaling "spamfilter" deleted from default namespace
+deployment.apps "spamfilter" deleted from default namespace
+service "spamfilter" deleted from default namespace

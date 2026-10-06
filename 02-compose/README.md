@@ -14,8 +14,8 @@ one file, and start everything with one command. Put a queue between the blog an
 filter, so that the blog keeps working when the spam filter is down: new comments wait in the
 queue, and the worker checks them when the spam filter is back.
 
-`compose.yaml` declares the services (shortened here); the names (`redis`, `spamfilter`) are also their host
-names on the network:
+`compose.yaml` declares the services (shortened here); the names (`redis`, `spamfilter`) are
+also their host names on the network:
 
 ```yaml
 services:
@@ -59,9 +59,9 @@ except httpx.HTTPError as e:
 1. `docker compose up --wait` builds the images, starts four services in the correct order,
    and waits until they are healthy.
 2. 30 comments: the worker checks all of them within about 1 s (20 published, 10 spam).
-3. The spam filter is stopped. The blog still accepts all 30 new comments (median about 10 ms); they
-   wait in the queue (`"waiting": 30`), and the worker logs `filter_unavailable`. A direct
-   call to the spam filter fails.
+3. The spam filter is stopped. The blog still accepts all 30 new comments (median about
+   10 ms); they wait in the queue (`"waiting": 30`), and the worker logs
+   `filter_unavailable`. A direct call to the spam filter fails.
 4. The spam filter starts again; the worker checks the 30 waiting comments within about 3 s.
 
 The system level and the component level are different: the spam filter was down, but the
