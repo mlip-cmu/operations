@@ -1,0 +1,17 @@
+# Managed by Ansible. Changes made by hand will be overwritten.
+upstream spamfilter {
+{% for host in groups['spamservers'] %}
+    server {{ host }}:{{ spamfilter_port }};
+{% endfor %}
+}
+
+server {
+    listen 80;
+    location /check {
+        proxy_pass http://spamfilter/check;
+        proxy_set_header X-API-Key "{{ spamfilter_api_key }}";
+    }
+    location / {
+        return 200 "Blog on {{ inventory_hostname }}\n";
+    }
+}

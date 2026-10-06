@@ -1,0 +1,22 @@
+# Four "servers" for the demo. In practice, these are machines in a data center or the cloud.
+name: fleet
+
+services:
+  web1:
+    build: { context: ., dockerfile: web.Dockerfile }
+    image: fleet-web
+    container_name: web1
+    ports: ["8081:80"]
+  web2:
+    image: fleet-web
+    container_name: web2
+    ports: ["8082:80"]
+    depends_on: [web1]
+  spam1:
+    build: { context: ., dockerfile: spam.Dockerfile }
+    image: fleet-spam
+    container_name: spam1
+  spam2:
+    image: fleet-spam
+    container_name: spam2
+    depends_on: [spam1]

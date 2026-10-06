@@ -1,0 +1,63 @@
+- name: Set up all servers
+  hosts: all
+  tasks:
+    - name: Install curl on every server
+      ansible.builtin.apt:
+        name: curl
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Write the message of the day
+      ansible.builtin.copy:
+        content: "{{ inventory_hostname }}: {{ group_names | join(', ') }}. Managed by Ansible.\n"
+        dest: /etc/motd
+        mode: "0644"
+
+- name: Configure the spam filter servers
+  hosts: spamservers
+  gather_facts: false
+  tasks:
+    - name: Create the configuration directory
+      ansible.builtin.file:
+        path: /etc/spamfilter
+        state: directory
+        mode: "0755"
+
+    - name: Write the spam filter configuration
+      ansible.builtin.template:
+        src: spamfilter.env.j2
+        dest: /etc/spamfilter/spamfilter.env
+        mode: "0644"
+      notify: Restart the spam filter
+
+    - name: Write the API key
+      ansible.builtin.template:
+        src: spamfilter-secrets.env.j2
+        dest: /etc/spamfilter/secrets.env
+        owner: app
+        mode: "0600"
+      diff: false  # never show the secret
+      notify: Restart the spam filter
+
+  handlers:
+    - name: Restart the spam filter
+      ansible.builtin.command: supervisorctl restart spamfilter
+      changed_when: true
+
+- name: Configure the web servers
+  hosts: webservers
+  gather_facts: false
+  tasks:
+    - name: Write the nginx configuration (forward /check to all spam filter servers)
+      ansible.builtin.template:
+        src: blog-nginx.conf.j2
+        dest: /etc/nginx/conf.d/default.conf
+        mode: "0600"
+      diff: false  # the file contains the API key
+      notify: Reload nginx
+
+  handlers:
+    - name: Reload nginx
+      ansible.builtin.command: nginx -s reload
+      changed_when: true

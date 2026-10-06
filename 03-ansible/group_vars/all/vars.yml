@@ -1,0 +1,4 @@
+spamfilter_port: 8000
+spamfilter_threshold: 0.5
+# the secret itself is in vault.yml (encrypted)
+spamfilter_api_key: "{{ vault_spamfilter_api_key }}"
