@@ -3,6 +3,7 @@
 # The output also goes to transcript.txt.
 set -euo pipefail
 cd "$(dirname "$0")"
+mkdir -p out
 exec > >(tee transcript.txt) 2>&1
 
 step() { printf '\n== %s\n' "$*"; }
@@ -21,7 +22,8 @@ wait_until_filtered() {
 trap 'docker compose down -v >/dev/null 2>&1' EXIT
 
 step "1. Start the whole system with one command"
-run docker compose up -d --build --wait --quiet-pull 2>/dev/null
+show docker compose up -d --build --wait
+docker compose up -d --build --wait > out/up.log 2>&1 || { cat out/up.log; exit 1; }
 run docker compose ps --format 'table {{.Service}}\t{{.Status}}'
 
 step "2. Readers post comments; the worker sends each one to the spam filter"

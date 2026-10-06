@@ -1,0 +1,9 @@
+[project]
+name = "ops05-monitoring"
+version = "1.0.0"
+description = "Screenshot of the Grafana dashboard"
+requires-python = ">=3.13"
+dependencies = ["playwright>=1.63"]
+
+[tool.uv]
+package = false

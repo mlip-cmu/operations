@@ -16,11 +16,17 @@ show() {
 run() { show "$@"; "$@"; }
 health() { for _ in $(seq "$1"); do curl -s "$URL/health"; echo; done; }
 
+quiet() { "$@" > out/last.log 2>&1 || { cat out/last.log; exit 1; }; }
+
 step "0. Start a local cluster and load the images"
-minikube status >/dev/null 2>&1 || minikube start --driver=docker >/dev/null
-minikube addons enable metrics-server >/dev/null
-docker build -q -t spamfilter:1.0 --build-arg APP_VERSION=1.0 ../01-container >/dev/null
-docker build -q -t spamfilter:1.1 --build-arg APP_VERSION=1.1 ../01-container >/dev/null
+if ! minikube status >/dev/null 2>&1; then
+  show minikube start --driver=docker
+  quiet minikube start --driver=docker
+fi
+show minikube addons enable metrics-server
+quiet minikube addons enable metrics-server
+quiet docker build -t spamfilter:1.0 --build-arg APP_VERSION=1.0 ../01-container
+quiet docker build -t spamfilter:1.1 --build-arg APP_VERSION=1.1 ../01-container
 run minikube image load spamfilter:1.0
 run minikube image load spamfilter:1.1
 kubectl delete -f k8s --ignore-not-found >/dev/null
@@ -30,7 +36,10 @@ step "1. Deploy three pods behind one service"
 run kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml
 run kubectl rollout status deployment/spamfilter --timeout=180s
 run kubectl get pods
-URL=$(minikube service spamfilter --url)
+# the service's port on the cluster node; with Docker Desktop (macOS, Windows), run
+# `minikube service spamfilter --url` in another terminal and set URL to its output
+URL=${URL:-http://$(minikube ip):$(kubectl get service spamfilter -o jsonpath='{.spec.ports[0].nodePort}')}
+echo "# service URL: $URL"
 echo "# the service balances requests over the pods (see \"host\"):"
 health 4
 
@@ -65,7 +74,8 @@ run kubectl get pods
 
 step "5. Autoscaling: under load, Kubernetes adds pods"
 run kubectl apply -f k8s/autoscaler.yaml
-until kubectl get hpa spamfilter -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' | grep -q .; do
+for _ in $(seq 36); do  # wait up to 3 minutes for the first CPU measurement
+  kubectl get hpa spamfilter -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' | grep -q . && break
   sleep 5
 done
 run kubectl get hpa spamfilter

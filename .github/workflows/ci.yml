@@ -16,10 +16,11 @@ jobs:
 
   demo:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        project: [01-container, 02-compose, 03-ansible, 04-kubernetes]
+        project: [01-container, 02-compose, 03-ansible, 04-kubernetes, 05-monitoring]
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -28,6 +29,9 @@ jobs:
         run: |
           curl -sSLo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
           sudo install minikube /usr/local/bin/minikube
+      - name: Install the browser for the dashboard screenshot
+        if: matrix.project == '05-monitoring'
+        run: uv run --project 05-monitoring playwright install --with-deps chromium
       - run: ./run_all.sh ${{ matrix.project }}
       - uses: actions/upload-artifact@v7
         if: always()
@@ -36,4 +40,5 @@ jobs:
           path: |
             ${{ matrix.project }}/transcript.txt
             ${{ matrix.project }}/out/
+            ${{ matrix.project }}/*.png
           if-no-files-found: ignore

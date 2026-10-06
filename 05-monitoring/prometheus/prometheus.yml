@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 5s       # short for the demo; 15-60 s is common
+  evaluation_interval: 5s
+
+rule_files:
+  - alerts.yml
+
+# Prometheus pulls the metrics from each service (GET /metrics)
+scrape_configs:
+  - job_name: spamfilter
+    static_configs:
+      - targets: ["spamfilter:8000"]
+  - job_name: blog
+    static_configs:
+      - targets: ["blog:8000"]

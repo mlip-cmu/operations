@@ -3,6 +3,7 @@
 # The output also goes to transcript.txt.
 set -euo pipefail
 cd "$(dirname "$0")"
+mkdir -p out
 exec > >(tee transcript.txt) 2>&1
 
 step() { printf '\n== %s\n' "$*"; }
@@ -24,7 +25,7 @@ trap 'fleet down >/dev/null 2>&1' EXIT
 step "0. Start four fresh servers (containers): web1, web2, spam1, spam2"
 docker build -q -t spamfilter:1.0 ../01-container >/dev/null
 fleet down >/dev/null 2>&1
-fleet up -d --build --wait >/dev/null 2>&1
+fleet up -d --build --wait > out/up.log 2>&1 || { cat out/up.log; exit 1; }
 run docker ps --filter name=web --filter name=spam --format '{{.Names}}\t{{.Image}}'
 
 step "1. Inventory: which servers exist and which role each has"

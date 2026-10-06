@@ -1,0 +1,34 @@
+groups:
+  - name: blog
+    rules:
+      - alert: SpamFilterDown
+        expr: up{job="spamfilter"} == 0
+        for: 30s
+        labels:
+          severity: page
+        annotations:
+          summary: The spam filter does not answer; new comments are not published.
+
+      - alert: CommentsWaiting
+        expr: blog_comments_waiting > 20
+        for: 30s
+        labels:
+          severity: page
+        annotations:
+          summary: "{{ $value }} comments wait for the spam check."
+
+      - alert: UnusualSpamShare
+        expr: sum(rate(spamfilter_comments_total{result="spam"}[5m])) / sum(rate(spamfilter_comments_total[5m])) > 0.6
+        for: 2m
+        labels:
+          severity: ticket
+        annotations:
+          summary: More than 60% of comments are spam; a new spam campaign or a broken model?
+
+      - alert: SlowSpamFilter
+        expr: histogram_quantile(0.95, sum by (le) (rate(spamfilter_inference_seconds_bucket[1m]))) > 0.1
+        for: 2m
+        labels:
+          severity: ticket
+        annotations:
+          summary: 95% of spam checks should take less than 100 ms.
